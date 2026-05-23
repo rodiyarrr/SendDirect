@@ -1,5 +1,6 @@
 package com.anirudh.senddirect.service;
 
+import com.anirudh.senddirect.exceptions.SessionNotFoundException;
 import com.anirudh.senddirect.models.TransferSession;
 import com.anirudh.senddirect.models.TransferStatus;
 import com.anirudh.senddirect.repositories.TransferSessionRepository;
@@ -26,7 +27,13 @@ public class TransferSessionService {
     }
 
     public TransferSession joinSession(String shareCode){
-        return repository.findByShareCode(shareCode);
+        TransferSession session=repository.findByShareCode(shareCode);
+        if (session==null){
+            throw new SessionNotFoundException("Session Not Found");
+        }
+        session.setStatus(TransferStatus.CONNECTED);
+        repository.save(session);
+        return session;
     }
 
 }
