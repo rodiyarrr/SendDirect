@@ -1,0 +1,13 @@
+package com.anirudh.senddirect;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class SenddirectApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
