@@ -25,4 +25,8 @@ public class TransferSessionService {
         return code;
     }
 
+    public TransferSession joinSession(String shareCode){
+        return repository.findByShareCode(shareCode);
+    }
+
 }
