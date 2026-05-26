@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>WebRTC Test</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+</head>
+
+<body>
+
+<input
+        id="message"
+        placeholder="Optional message"
+>
+
+<button onclick="sendOffer()">
+    Send Offer
+</button>
+
+<div id="chat"></div>
+
+<script>
+
+    let stompClient;
+
+    const peerConnection =
+        new RTCPeerConnection();
+
+
+    const socket =
+        new SockJS(
+            'http://localhost:8080/ws'
+        );
+
+
+    stompClient =
+        Stomp.over(
+            socket
+        );
+
+
+    stompClient.connect(
+
+        {},
+
+        function () {
+
+            console.log(
+                "Connected"
+            );
+
+
+            stompClient.subscribe(
+
+                "/topic/session/AB12XY",
+
+                function(response){
+
+                    console.log(
+                        "Message received:",
+                        response
+                    );
+
+
+                    const msg =
+                        JSON.parse(
+                            response.body
+                        );
+
+
+                    document
+                        .getElementById(
+                            "chat"
+                        )
+                        .innerHTML +=
+                        "<p>"
+                        + msg.sender
+                        + " | "
+                        + msg.type
+                        + " : "
+                        + msg.content
+                        + "</p>";
+
+                }
+
+            );
+
+        }
+
+    );
+
+
+    async function sendOffer(){
+
+        try{
+
+            const offer =
+                await peerConnection
+                    .createOffer();
+
+
+            await peerConnection
+                .setLocalDescription(
+                    offer
+                );
+
+
+            console.log(
+                "Generated Offer:",
+                offer
+            );
+
+
+            stompClient.send(
+
+                "/app/chat",
+
+                {},
+
+                JSON.stringify({
+
+                    sender:"Anirudh",
+
+                    shareCode:"AB12XY",
+
+                    type:"offer",
+
+                    content:
+                        JSON.stringify(
+                            offer
+                        )
+
+                })
+
+            );
+
+        }
+
+        catch(error){
+
+            console.error(
+                "Offer generation failed:",
+                error
+            );
+
+        }
+
+    }
+
+</script>
+
+</body>
+
+</html>
