@@ -6,16 +6,150 @@
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+
+        body{
+
+        display:flex;
+        justify-content:center;
+        align-items:center;
+
+        height:100vh;
+
+        background:#0f172a;
+
+        font-family:Arial;
+
+        color:white;
+
+        }
+
+
+        .container{
+
+        width:450px;
+
+        padding:30px;
+
+        border-radius:20px;
+
+        background:#1e293b;
+
+        text-align:center;
+
+        box-shadow:
+
+        0 0 30px
+        rgba(
+        0,
+        0,
+        0,
+        0.4
+        );
+
+        }
+
+
+        button{
+
+        padding:12px 18px;
+
+        margin:10px;
+
+        border:none;
+
+        border-radius:10px;
+
+        cursor:pointer;
+
+        font-size:15px;
+
+        }
+
+
+        button:hover{
+
+        transform:scale(
+        1.05
+        );
+
+        transition:.3s;
+
+        }
+
+
+        input{
+
+        margin:15px;
+
+        }
+        #dropZone{
+
+border:
+
+2px dashed
+#64748b;
+
+padding:40px;
+
+margin:20px;
+
+border-radius:15px;
+
+cursor:pointer;
+
+transition:.3s;
+
+}
+
+
+#dropZone:hover{
+
+background:#334155;
+
+}
+#fileInfo{
+
+margin-top:20px;
+
+padding:15px;
+
+border-radius:10px;
+
+background:#334155;
+
+display:none;
+
+}
+    </style>
+
 </head>
 <body>
 
-<input type="file" id="fileInput">
+<div class="container">
+    <h1>SendDirect </h1>
 
+    <p>
+        Fast Peer-to-Peer File Sharing
+    </p>
+
+    <div id="dropZone">
+
+         Drag & Drop Files Here
+
+        <br><br>
+        <span>or click to browse</span>
+
+    </div>
+    <div id="fileInfo"></div>
+<input type="file" id="fileInput"   hidden>
 <button onclick="createSession()">Send Files</button>
 <button onclick="joinSession()">Receive Files</button>
 
 <div id="session"></div>
 <div id="qrcode"></div>
+</div>
 <script>
     let stompClient;
     const clientName=prompt("Enter name");
@@ -29,11 +163,153 @@
     let fileMetadata=null;
     let receivedBytes=0;
 
-    document.getElementById("fileInput")
-    .addEventListener("change",(e)=>{
-     selectedFile=e.target.files[0];
-     console.log("Selected:",selectedFile);
-    });
+    document
+.getElementById(
+"fileInput"
+)
+.addEventListener(
+
+"change",
+
+function(event){
+
+selectedFile =
+event.target.files[0];
+
+
+console.log(
+"Selected:",
+selectedFile
+);
+
+
+document
+.getElementById(
+"dropZone"
+)
+.innerHTML=
+
+"📄 "
++
+selectedFile.name;
+
+
+document
+.getElementById(
+"fileInfo"
+)
+.style.display=
+"block";
+
+
+document
+.getElementById(
+"fileInfo"
+)
+.innerHTML=
+
+"📄 "
++ selectedFile.name
+
++ "<br><br>"
+
++ "Size: "
+
++ (
+selectedFile.size
+/
+1024
+/
+1024
+).toFixed(2)
+
++ " MB";
+
+}
+
+);
+
+
+    dropZone.onclick=
+    function(){
+
+    document
+    .getElementById(
+    "fileInput"
+    )
+    .click();
+
+    };
+
+
+
+    dropZone.ondragover=
+    function(event){
+
+    event.preventDefault();
+
+    dropZone.style.background=
+    "#334155";
+
+    };
+
+
+
+    dropZone.ondragleave=
+    function(){
+
+    dropZone.style.background=
+    "";
+
+    };
+
+
+
+    dropZone.ondrop=
+    function(event){
+
+    event.preventDefault();
+
+    dropZone.style.background=
+    "";
+
+
+    selectedFile=
+    event.dataTransfer.files[0];
+
+
+    console.log(
+    selectedFile
+    );
+    document
+.getElementById(
+"fileInfo"
+)
+.style.display=
+"block";
+
+
+document
+.getElementById(
+"fileInfo"
+)
+.innerHTML=
+
+"📄 "
++ selectedFile.name
+
++ "<br><br>"
+
++ "Size: "
+
++ (
+selectedFile.size/
+1024
+/1024
+).toFixed(2)
+
++ " MB";
+    };
 
     const peerConnection=
 new RTCPeerConnection({
