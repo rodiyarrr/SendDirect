@@ -1,528 +1,376 @@
+
 <!DOCTYPE html>
 <html>
-
 <head>
-    <title>SendDirect WebRTC Test</title>
-
+    <title>SendDirect</title>
     <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
-
 <body>
 
-<input
-        type="file"
-        id="fileInput"
->
+<input type="file" id="fileInput">
 
-<button onclick="sendOffer()">
-    Connect
-</button>
+<button onclick="createSession()">Send Files</button>
+<button onclick="joinSession()">Receive Files</button>
 
-<div id="chat"></div>
-
+<div id="session"></div>
+<div id="qrcode"></div>
 <script>
-
     let stompClient;
-
-    const clientName =
-        prompt(
-            "Enter your name"
-        );
+    const clientName=prompt("Enter name");
+    let shareCode=null;
 
     const pendingCandidates=[];
-
-    const CHUNK_SIZE=
-        16*1024;
+    const CHUNK_SIZE=16*1024;
 
     let selectedFile;
+    let receivedChunks=[];
+    let fileMetadata=null;
+    let receivedBytes=0;
 
-
-
-    document
-        .getElementById(
-            "fileInput"
-        )
-        .addEventListener(
-
-            "change",
-
-            function(event){
-
-                selectedFile=
-                    event.target.files[0];
-
-                console.log(
-
-                    "Selected File:",
-
-                    selectedFile
-
-                );
-
-            }
-
-        );
-
-
+    document.getElementById("fileInput")
+    .addEventListener("change",(e)=>{
+     selectedFile=e.target.files[0];
+     console.log("Selected:",selectedFile);
+    });
 
     const peerConnection=
-        new RTCPeerConnection();
+new RTCPeerConnection({
 
+iceServers:[
 
+{
+urls:
+"stun:stun.l.google.com:19302"
+},
 
-    const dataChannel=
-        peerConnection
-            .createDataChannel(
-                "fileTransfer"
+{
+urls:
+"turn:openrelay.metered.ca:80",
+
+username:
+"openrelayproject",
+
+credential:
+"openrelayproject"
+}
+
+]
+
+});
+
+    const dataChannel=peerConnection.createDataChannel("fileTransfer");
+
+    peerConnection.ondatachannel=(event)=>{
+     const receiveChannel=event.channel;
+
+     receiveChannel.onmessage=(event)=>{
+
+       if(typeof event.data==="string"){
+
+          const data=JSON.parse(event.data);
+
+          if(data.type==="metadata"){
+              fileMetadata=data;
+              receivedChunks=[];
+              receivedBytes=0;
+          }
+
+       }else{
+
+          receivedChunks.push(event.data);
+          receivedBytes+=event.data.byteLength;
+
+          console.log(
+            receivedBytes+"/"+fileMetadata.fileSize
+          );
+
+          if(receivedBytes>=fileMetadata.fileSize){
+
+            const blob=new Blob(
+                receivedChunks,
+                {type:fileMetadata.fileType}
             );
 
+            const url=URL.createObjectURL(blob);
 
+            const a=document.createElement("a");
 
-    peerConnection.ondatachannel=
-        function(event){
+            a.href=url;
+            a.download=fileMetadata.fileName;
 
-            console.log(
-                "Incoming DataChannel"
-            );
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
 
-            const receiveChannel=
-                event.channel;
+            URL.revokeObjectURL(url);
 
+            console.log("Transfer Complete");
+          }
+       }
+     };
+    };
 
-            receiveChannel.onopen=
-                function(){
+    dataChannel.onopen=async()=>{
 
-                    console.log(
-                        "Receiver DataChannel Opened"
-                    );
+     if(!selectedFile){
+       console.log("No file selected");
+       return;
+     }
 
-                };
+     dataChannel.send(JSON.stringify({
+        type:"metadata",
+        fileName:selectedFile.name,
+        fileSize:selectedFile.size,
+        fileType:selectedFile.type
+     }));
 
+     const buffer=await selectedFile.arrayBuffer();
 
-            receiveChannel.onmessage=
-                function(event){
+     let offset=0;
 
-                    if(
-                        event.data instanceof ArrayBuffer
-                    ){
+     while(offset<buffer.byteLength){
 
-                        console.log(
-
-                            "Received bytes:",
-
-                            event.data.byteLength
-
-                        );
-
-                    }
-
-                    else{
-
-                        console.log(
-                            event.data
-                        );
-
-                    }
-
-                };
-
-        };
-
-
-
-    dataChannel.onopen=
-        async function(){
-
-            console.log(
-                "DataChannel Opened"
-            );
-
-
-            if(
-                !selectedFile
-            ){
-
-                console.log(
-                    "No file selected"
-                );
-
-                return;
-
-            }
-
-
-            const buffer=
-                await selectedFile
-                    .arrayBuffer();
-
-
-            console.log(
-
-                "Buffer Size:",
-
-                buffer.byteLength
-
-            );
-
-
-            let offset=0;
-
-
-            while(
-                offset<
-                buffer.byteLength
-            ){
-
-                const chunk=
-                    buffer.slice(
-
-                        offset,
-
-                        offset+
-                        CHUNK_SIZE
-
-                    );
-
-
-                dataChannel.send(
-                    chunk
-                );
-
-
-                console.log(
-
-                    "Sent chunk:",
-
-                    offset
-
-                );
-
-
-                offset+=
-                    CHUNK_SIZE;
-
-            }
-
-        };
-
-
-
-    dataChannel.onmessage=
-        function(event){
-
-            console.log(
-                "Received:",
-                event.data
-            );
-
-        };
-
-
-
-    peerConnection.onconnectionstatechange=
-        function(){
-
-            console.log(
-
-                "Connection State:",
-
-                peerConnection
-                    .connectionState
-
-            );
-
-        };
-
-
-
-    peerConnection.onicecandidate=
-        function(event){
-
-            if(
-                event.candidate
-            ){
-
-                stompClient.send(
-
-                    "/app/chat",
-
-                    {},
-
-                    JSON.stringify({
-
-                        sender:
-                            clientName,
-
-                        shareCode:
-                            "AB12XY",
-
-                        type:
-                            "candidate",
-
-                        content:
-                            JSON.stringify(
-                                event.candidate
-                            )
-
-                    })
-
-                );
-
-            }
-
-        };
-
-
-
-    const socket=
-        new SockJS(
-            "http://localhost:8080/ws"
+        const chunk=buffer.slice(
+          offset,
+          offset+CHUNK_SIZE
         );
 
+        dataChannel.send(chunk);
 
+        offset+=CHUNK_SIZE;
 
-    stompClient=
-        Stomp.over(
-            socket
+        await new Promise(
+          r=>setTimeout(r,10)
         );
+     }
+    };
 
+    peerConnection.onicecandidate=(event)=>{
 
+     if(event.candidate){
 
-    stompClient.connect(
+       stompClient.send(
+          "/app/chat",
+          {},
+          JSON.stringify({
+            sender:clientName,
+            shareCode:shareCode,
+            type:"candidate",
+            content:JSON.stringify(event.candidate)
+          })
+       );
 
-        {},
+     }
 
-        function(){
+    };
 
-            console.log(
-                "Connected"
-            );
+    function subscribeToSession(){
 
-            stompClient.subscribe(
+    stompClient.subscribe(
+    "/topic/session/"+shareCode,
 
-                "/topic/session/AB12XY",
+    async(response)=>{
 
-                async function(response){
+    const msg=JSON.parse(response.body);
 
-                    const msg=
-                        JSON.parse(
-                            response.body
-                        );
+    if(msg.sender===clientName) return;
 
+    if(msg.type==="ready"){
 
-                    if(
-                        msg.sender===
-                        clientName
-                    ){
+     if(selectedFile){
+       sendOffer();
+     }
 
-                        return;
+     return;
+    }
 
-                    }
+    if(msg.type==="offer"){
 
+    const offer=JSON.parse(msg.content);
 
+    await peerConnection.setRemoteDescription(offer);
 
-                    if(
-                        msg.type===
-                        "offer"
-                    ){
+    while(pendingCandidates.length>0){
+     await peerConnection.addIceCandidate(
+       pendingCandidates.shift()
+     );
+    }
 
-                        const offer=
-                            JSON.parse(
-                                msg.content
-                            );
+    const answer=await peerConnection.createAnswer();
 
+    await peerConnection.setLocalDescription(answer);
 
-                        await peerConnection
-                            .setRemoteDescription(
-                                offer
-                            );
-
-
-                        while(
-
-                            pendingCandidates
-                                .length>0
-
-                        ){
-
-                            await peerConnection
-                                .addIceCandidate(
-
-                                    pendingCandidates
-                                        .shift()
-
-                                );
-
-                        }
-
-
-                        const answer=
-                            await peerConnection
-                                .createAnswer();
-
-
-                        await peerConnection
-                            .setLocalDescription(
-                                answer
-                            );
-
-
-                        stompClient.send(
-
-                            "/app/chat",
-
-                            {},
-
-                            JSON.stringify({
-
-                                sender:
-                                    clientName,
-
-                                shareCode:
-                                    "AB12XY",
-
-                                type:
-                                    "answer",
-
-                                content:
-                                    JSON.stringify(
-                                        answer
-                                    )
-
-                            })
-
-                        );
-
-                    }
-
-
-                    else if(
-                        msg.type===
-                        "answer"
-                    ){
-
-                        const answer=
-                            JSON.parse(
-                                msg.content
-                            );
-
-
-                        await peerConnection
-                            .setRemoteDescription(
-                                answer
-                            );
-
-
-                        while(
-
-                            pendingCandidates
-                                .length>0
-
-                        ){
-
-                            await peerConnection
-                                .addIceCandidate(
-
-                                    pendingCandidates
-                                        .shift()
-
-                                );
-
-                        }
-
-                    }
-
-
-                    else if(
-                        msg.type===
-                        "candidate"
-                    ){
-
-                        const candidate=
-                            JSON.parse(
-                                msg.content
-                            );
-
-
-                        if(
-
-                            peerConnection
-                                .remoteDescription
-
-                        ){
-
-                            await peerConnection
-                                .addIceCandidate(
-                                    candidate
-                                );
-
-                        }
-
-                        else{
-
-                            pendingCandidates
-                                .push(
-                                    candidate
-                                );
-
-                        }
-
-                    }
-
-                }
-
-            );
-
-        }
-
+    stompClient.send(
+    "/app/chat",
+    {},
+    JSON.stringify({
+    sender:clientName,
+    shareCode:shareCode,
+    type:"answer",
+    content:JSON.stringify(answer)
+    })
     );
-
-
-
-    async function sendOffer(){
-
-        const offer=
-            await peerConnection
-                .createOffer();
-
-
-        await peerConnection
-            .setLocalDescription(
-                offer
-            );
-
-
-        stompClient.send(
-
-            "/app/chat",
-
-            {},
-
-            JSON.stringify({
-
-                sender:
-                    clientName,
-
-                shareCode:
-                    "AB12XY",
-
-                type:
-                    "offer",
-
-                content:
-                    JSON.stringify(
-                        offer
-                    )
-
-            })
-
-        );
 
     }
 
+    else if(msg.type==="answer"){
+
+    await peerConnection.setRemoteDescription(
+    JSON.parse(msg.content)
+    );
+
+    }
+
+    else if(msg.type==="candidate"){
+
+    const candidate=JSON.parse(msg.content);
+
+    if(peerConnection.remoteDescription){
+
+    await peerConnection.addIceCandidate(candidate);
+
+    }else{
+
+    pendingCandidates.push(candidate);
+
+    }
+
+    }
+
+    });
+    }
+
+    async function createSession(){
+
+    const response=await fetch(
+    "/api/session/create",
+    {method:"POST"}
+    );
+
+    const data=await response.json();
+
+    shareCode=data.shareCode;
+
+    document.getElementById(
+"session"
+).innerHTML=
+
+"Share Code: "
++shareCode;
+
+
+document.getElementById(
+"qrcode"
+).innerHTML="";
+
+
+new QRCode(
+
+document.getElementById(
+"qrcode"
+),
+
+{
+
+text:
+
+window.location.origin
++"/receive?code="
++shareCode,
+
+width:200,
+
+height:200
+
+}
+
+);
+
+    subscribeToSession();
+    }
+
+    async function joinSession(){
+
+    shareCode=prompt("Enter share code");
+
+    await fetch(
+    "/api/session/join/"+shareCode
+    );
+
+    document.getElementById("session").innerHTML=
+    "Joined: "+shareCode;
+
+    subscribeToSession();
+
+    stompClient.send(
+    "/app/chat",
+    {},
+    JSON.stringify({
+    sender:clientName,
+    shareCode:shareCode,
+    type:"ready",
+    content:"joined"
+    })
+    );
+
+    }
+
+    async function sendOffer(){
+
+    const offer=await peerConnection.createOffer();
+
+    await peerConnection.setLocalDescription(
+    offer
+    );
+
+    stompClient.send(
+    "/app/chat",
+    {},
+    JSON.stringify({
+    sender:clientName,
+    shareCode:shareCode,
+    type:"offer",
+    content:JSON.stringify(offer)
+    })
+    );
+
+    }
+
+    const socket =
+new SockJS(
+
+window.location.origin
++"/ws"
+
+);
+    stompClient=Stomp.over(socket);
+
+    stompClient.connect(
+
+{},
+
+function(frame){
+
+    console.log(
+        "Connected:",
+        frame
+    );
+
+},
+
+function(error){
+
+    console.error(
+        "STOMP Error:",
+        error
+    );
+
+}
+
+);
+
 </script>
-
 </body>
-
 </html>
