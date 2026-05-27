@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>SendDirect</title>
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+
+        :root {
+          --bg:       #0b1120;
+          --surface:  #131e31;
+          --surface2: #1c2d45;
+          --border:   #243650;
+          --accent:   #38bdf8;
+          --accent2:  #0ea5e9;
+          --success:  #34d399;
+          --text:     #e2e8f0;
+          --muted:    #64748b;
+          --radius:   14px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+          min-height: 100vh;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          background: var(--bg);
+          font-family: 'DM Sans', sans-serif;
+          color: var(--text);
+          background-image:
+            radial-gradient(ellipse 80% 50% at 50% -10%, rgba(56,189,248,.12), transparent),
+            radial-gradient(ellipse 60% 40% at 80% 110%, rgba(14,165,233,.08), transparent);
+        }
+
+        .card {
+          width: 460px;
+          padding: 36px 32px;
+          background: var(--surface);
+          border: 1px solid var(--border);
+          border-radius: 22px;
+          box-shadow: 0 24px 64px rgba(0,0,0,.45);
+          text-align: center;
+        }
+
+        .logo {
+          font-family: 'Space Mono', monospace;
+          font-size: 1.6rem;
+          font-weight: 700;
+          letter-spacing: -.5px;
+          color: var(--accent);
+        }
+        .logo span { color: var(--text); }
+
+        .subtitle {
+          margin-top: 6px;
+          font-size: .85rem;
+          color: var(--muted);
+          letter-spacing: .04em;
+          text-transform: uppercase;
+        }
+
+        #dropZone {
+          margin: 28px 0 16px;
+          padding: 36px 20px;
+          border: 2px dashed var(--border);
+          border-radius: var(--radius);
+          cursor: pointer;
+          transition: background .2s, border-color .2s;
+          color: var(--muted);
+          font-size: .9rem;
+          line-height: 1.8;
+        }
+        #dropZone:hover,
+        #dropZone.drag-over {
+          background: var(--surface2);
+          border-color: var(--accent);
+          color: var(--text);
+        }
+        #dropZone .icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+
+        #fileInfo {
+          display: none;
+          margin-bottom: 20px;
+          padding: 14px 18px;
+          background: var(--surface2);
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          font-size: .88rem;
+          text-align: left;
+        }
+        #fileInfo .file-name {
+          font-family: 'Space Mono', monospace;
+          font-size: .82rem;
+          color: var(--accent);
+          word-break: break-all;
+        }
+        #fileInfo .file-size {
+          margin-top: 4px;
+          color: var(--muted);
+          font-size: .8rem;
+        }
+
+        .actions {
+          display: flex;
+          gap: 12px;
+          margin-bottom: 20px;
+        }
+        .btn {
+          flex: 1;
+          padding: 13px;
+          border: none;
+          border-radius: var(--radius);
+          cursor: pointer;
+          font-size: .9rem;
+          font-family: 'DM Sans', sans-serif;
+          font-weight: 500;
+          transition: transform .15s, opacity .15s;
+        }
+        .btn:hover  { transform: translateY(-2px); opacity: .92; }
+        .btn:active { transform: translateY(0); }
+        .btn-send    { background: var(--accent); color: #0b1120; }
+        .btn-receive { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+        #session {
+          min-height: 26px;
+          margin-bottom: 16px;
+          font-family: 'Space Mono', monospace;
+          font-size: .82rem;
+          color: var(--accent);
+          letter-spacing: .05em;
+        }
+
+        #progressContainer {
+          display: none;
+          width: 100%;
+          height: 8px;
+          background: var(--surface2);
+          border-radius: 99px;
+          overflow: hidden;
+          margin-bottom: 10px;
+        }
+        #progressBar {
+          height: 100%;
+          width: 0%;
+          background: linear-gradient(90deg, var(--accent2), var(--success));
+          border-radius: 99px;
+          transition: width .25s ease;
+        }
+        #progressText {
+          font-family: 'Space Mono', monospace;
+          font-size: .8rem;
+          color: var(--muted);
+        }
+        #progressText.done { color: var(--success); }
+    </style>
+</head>
+
+<body>
+<div class="card">
+    <div class="logo">Send<span>Direct</span></div>
+    <div class="subtitle">Fast peer-to-peer file sharing</div>
+
+    <div id="dropZone">
+        <span class="icon">⇪</span>
+        Drag &amp; drop a file here<br>
+        <small>or click to browse</small>
+    </div>
+
+    <div id="fileInfo">
+        <div class="file-name" id="fileName"></div>
+        <div class="file-size" id="fileSize"></div>
+    </div>
+
+    <input type="file" id="fileInput" hidden />
+
+    <div class="actions">
+        <button class="btn btn-send"    onclick="createSession()">Send File</button>
+        <button class="btn btn-receive" onclick="joinSession()">Receive File</button>
+    </div>
+
+    <div id="session"></div>
+
+    <div id="progressContainer">
+        <div id="progressBar"></div>
+    </div>
+    <p id="progressText">0%</p>
+</div>
+
+<script>
+    /* ─────────────────────────────────────────────────────
+       Constants & state
+    ───────────────────────────────────────────────────── */
+    const CLIENT_NAME  = "User-" + Math.floor(Math.random() * 100000);
+    const CHUNK_SIZE   = 16 * 1024;        // 16 KB per chunk
+    const BUFFER_LIMIT = 256 * 1024;       // pause sending above 256 KB buffered
+
+    let stompClient   = null;
+    let stompReady    = false;
+    let shareCode     = null;
+    let selectedFile  = null;
+    let isSender      = false;
+
+    // Receiver state
+    let receivedChunks = [];
+    let receivedBytes  = 0;
+    let fileMetadata   = null;
+
+    // Buffer ICE candidates that arrive before remote description is set
+    const pendingCandidates = [];
+
+    /* ─────────────────────────────────────────────────────
+       WebRTC peer connection
+       - Sender creates the data channel inside sendOffer()
+       - Receiver gets it via ondatachannel
+    ───────────────────────────────────────────────────── */
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        {
+          urls:       "turn:openrelay.metered.ca:80",
+          username:   "openrelayproject",
+          credential: "openrelayproject"
+        }
+      ]
+    });
+
+    // Receiver: incoming data channel from sender
+    peerConnection.ondatachannel = (event) => {
+      setupReceiveChannel(event.channel);
+    };
+
+    // Send ICE candidates to the other peer via the signaling server
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        signal("candidate", JSON.stringify(event.candidate));
+      }
+    };
+
+    /* ─────────────────────────────────────────────────────
+       Sender: set up the outgoing data channel
+    ───────────────────────────────────────────────────── */
+    function setupSendChannel(channel) {
+      channel.onopen = () => sendFile(channel);
+      channel.onerror = (e) => console.error("Send channel error:", e);
+    }
+
+    async function sendFile(channel) {
+      if (!selectedFile) {
+        console.warn("No file selected");
+        return;
+      }
+
+      // 1. Send metadata as JSON string so the receiver knows what's coming
+      channel.send(JSON.stringify({
+        type:     "metadata",
+        fileName: selectedFile.name,
+        fileSize: selectedFile.size,
+        fileType: selectedFile.type
+      }));
+
+      // 2. Read the whole file then send it in chunks,
+      //    pausing whenever the send buffer is too full.
+      const buffer = await selectedFile.arrayBuffer();
+      let offset = 0;
+
+      while (offset < buffer.byteLength) {
+        // Back-pressure: wait until the buffer drains before sending more
+        if (channel.bufferedAmount > BUFFER_LIMIT) {
+          await waitForBuffer(channel);
+        }
+
+        const end   = Math.min(offset + CHUNK_SIZE, buffer.byteLength);
+        const chunk = buffer.slice(offset, end);
+        channel.send(chunk);
+        offset = end;
+
+        updateProgress(offset, buffer.byteLength);
+      }
+    }
+
+    // Resolves once the data channel's send buffer falls below the limit
+    function waitForBuffer(channel) {
+      return new Promise((resolve) => {
+        const check = () => {
+          if (channel.bufferedAmount <= BUFFER_LIMIT) {
+            resolve();
+          } else {
+            setTimeout(check, 50);
+          }
+        };
+        setTimeout(check, 50);
+      });
+    }
+
+    /* ─────────────────────────────────────────────────────
+       Receiver: incoming data channel
+    ───────────────────────────────────────────────────── */
+    function setupReceiveChannel(channel) {
+      channel.binaryType = "arraybuffer";
+
+      channel.onmessage = (event) => {
+        // String → metadata JSON
+        if (typeof event.data === "string") {
+          const msg = JSON.parse(event.data);
+          if (msg.type === "metadata") {
+            fileMetadata   = msg;
+            receivedChunks = [];
+            receivedBytes  = 0;
+            console.log("Receiving:", msg.fileName, "(", msg.fileSize, "bytes )");
+          }
+          return;
+        }
+
+        // ArrayBuffer → file chunk
+        receivedChunks.push(event.data);
+        receivedBytes += event.data.byteLength;
+        updateProgress(receivedBytes, fileMetadata.fileSize);
+
+        if (receivedBytes >= fileMetadata.fileSize) {
+          const blob = new Blob(receivedChunks, { type: fileMetadata.fileType });
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement("a");
+          a.href     = url;
+          a.download = fileMetadata.fileName;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          console.log("Transfer complete");
+        }
+      };
+
+      channel.onerror = (e) => console.error("Receive channel error:", e);
+    }
+
+    /* ─────────────────────────────────────────────────────
+       Signaling  (one function, used everywhere)
+    ───────────────────────────────────────────────────── */
+    function signal(type, content) {
+      stompClient.send("/app/chat", {}, JSON.stringify({
+        sender:    CLIENT_NAME,
+        shareCode: shareCode,
+        type,
+        content
+      }));
+    }
+
+    function signalingSubscribe() {
+      stompClient.subscribe("/topic/session/" + shareCode, async (response) => {
+        const msg = JSON.parse(response.body);
+
+        // Ignore our own echoed messages
+        if (msg.sender === CLIENT_NAME) return;
+
+        switch (msg.type) {
+
+          case "ready":
+            // Receiver just joined → sender kicks off the WebRTC handshake
+            if (isSender) await sendOffer();
+            break;
+
+          case "offer": {
+            const offer = JSON.parse(msg.content);
+            await peerConnection.setRemoteDescription(offer);
+
+            // Flush any ICE candidates that arrived before the offer
+            while (pendingCandidates.length > 0) {
+              await peerConnection.addIceCandidate(pendingCandidates.shift());
+            }
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            signal("answer", JSON.stringify(answer));
+            break;
+          }
+
+          case "answer":
+            await peerConnection.setRemoteDescription(JSON.parse(msg.content));
+            break;
+
+          case "candidate": {
+            const candidate = JSON.parse(msg.content);
+            // If remote description is not set yet, buffer the candidate
+            if (peerConnection.remoteDescription) {
+              await peerConnection.addIceCandidate(candidate);
+            } else {
+              pendingCandidates.push(candidate);
+            }
+            break;
+          }
+        }
+      });
+    }
+
+    /* ─────────────────────────────────────────────────────
+       WebRTC offer (sender only)
+    ───────────────────────────────────────────────────── */
+    async function sendOffer() {
+      // Data channel must be created BEFORE createOffer so it's included
+      // in the SDP negotiation. Receiver gets it via ondatachannel.
+      const dataChannel = peerConnection.createDataChannel("fileTransfer");
+      setupSendChannel(dataChannel);
+
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      signal("offer", JSON.stringify(offer));
+    }
+
+    /* ─────────────────────────────────────────────────────
+       Session actions (buttons)
+    ───────────────────────────────────────────────────── */
+    async function createSession() {
+      if (!stompReady) { alert("Still connecting, please try again."); return; }
+
+      isSender = true;
+      resetProgress();
+
+      const response = await fetch("/api/session/create", { method: "POST" });
+      const data     = await response.json();
+      shareCode = data.shareCode;
+
+      document.getElementById("session").textContent = "Share Code: " + shareCode;
+      signalingSubscribe();
+    }
+
+    async function joinSession() {
+      if (!stompReady) { alert("Still connecting, please try again."); return; }
+
+      shareCode = prompt("Enter share code");
+      if (!shareCode) return;
+
+      isSender = false;
+
+      await fetch("/api/session/join/" + shareCode);
+      document.getElementById("session").textContent = "Joined session: " + shareCode;
+
+      signalingSubscribe();
+
+      // Tell the sender we're ready so they fire sendOffer()
+      signal("ready", "joined");
+    }
+
+    /* ─────────────────────────────────────────────────────
+       UI helpers
+    ───────────────────────────────────────────────────── */
+    function updateProgress(current, total) {
+      const pct = Math.min(Math.floor((current / total) * 100), 100);
+      document.getElementById("progressContainer").style.display = "block";
+      document.getElementById("progressBar").style.width         = pct + "%";
+      const label = document.getElementById("progressText");
+      label.textContent = pct + "%";
+      label.className   = pct === 100 ? "done" : "";
+    }
+
+    function resetProgress() {
+      document.getElementById("progressBar").style.width         = "0%";
+      document.getElementById("progressText").textContent        = "0%";
+      document.getElementById("progressText").className          = "";
+      document.getElementById("progressContainer").style.display = "none";
+    }
+
+    function showFileInfo(file) {
+      selectedFile = file;
+      document.getElementById("dropZone").innerHTML =
+        `<span class="icon">✓</span>${file.name}`;
+      document.getElementById("fileName").textContent = file.name;
+      document.getElementById("fileSize").textContent =
+        "Size: " + (file.size / 1024 / 1024).toFixed(2) + " MB";
+      document.getElementById("fileInfo").style.display = "block";
+    }
+
+    /* ─────────────────────────────────────────────────────
+       File input / drag-and-drop
+    ───────────────────────────────────────────────────── */
+    const dropZone  = document.getElementById("dropZone");
+    const fileInput = document.getElementById("fileInput");
+
+    dropZone.addEventListener("click",     () => fileInput.click());
+    dropZone.addEventListener("dragover",  (e) => { e.preventDefault(); dropZone.classList.add("drag-over"); });
+    dropZone.addEventListener("dragleave", ()  => dropZone.classList.remove("drag-over"));
+    dropZone.addEventListener("drop",      (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files[0]) showFileInfo(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener("change", (e) => {
+      if (e.target.files[0]) showFileInfo(e.target.files[0]);
+    });
+
+    /* ─────────────────────────────────────────────────────
+       STOMP / SockJS connection
+    ───────────────────────────────────────────────────── */
+    const socket = new SockJS(window.location.origin + "/ws");
+    stompClient  = Stomp.over(socket);
+    stompClient.debug = null; // silence verbose logs
+
+    stompClient.connect(
+      {},
+      (frame) => {
+        console.log("STOMP connected:", frame);
+        stompReady = true;
+      },
+      (error) => console.error("STOMP error:", error)
+    );
+</script>
+</body>
+</html>

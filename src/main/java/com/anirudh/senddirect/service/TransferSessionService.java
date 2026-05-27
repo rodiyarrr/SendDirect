@@ -6,7 +6,11 @@ import com.anirudh.senddirect.models.TransferStatus;
 import com.anirudh.senddirect.repositories.TransferSessionRepository;
 import com.anirudh.senddirect.util.ShareCodeGenerator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +38,11 @@ public class TransferSessionService {
         session.setStatus(TransferStatus.CONNECTED);
         repository.save(session);
         return session;
+    }
+
+    @Scheduled(fixedDelay = 3600000)
+    public void cleanExpiredSessions(){
+        repository.deleteOlderThan(Duration.ofHours(2));
     }
 
 }
