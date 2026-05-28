@@ -500,18 +500,34 @@
     /* ─────────────────────────────────────────────────────
        STOMP / SockJS connection
     ───────────────────────────────────────────────────── */
-    const socket = new SockJS(window.location.origin + "/ws");
-    stompClient  = Stomp.over(socket);
-    stompClient.debug = null; // silence verbose logs
 
-    stompClient.connect(
-      {},
-      (frame) => {
-        console.log("STOMP connected:", frame);
-        stompReady = true;
-      },
-      (error) => console.error("STOMP error:", error)
-    );
+    function connectStomp() {
+  const socket = new SockJS(window.location.origin + "/ws");
+  stompClient  = Stomp.over(socket);
+  stompClient.debug = null;
+
+  stompClient.connect(
+    {},
+    (frame) => {
+      console.log("STOMP connected:", frame);
+      stompReady = true;
+
+      // reconnect ke baad agar shareCode tha toh resubscribe karo
+      if (shareCode) {
+        signalingSubscribe();
+      }
+    },
+    (error) => {
+      console.error("STOMP error:", error);
+      stompReady = false;
+      // 3 second baad reconnect try karo
+      setTimeout(connectStomp, 3000);
+    }
+  );
+}
+
+connectStomp(); // pehle wali connect() call ki jagah ye call karo
+
 </script>
 </body>
 </html>
