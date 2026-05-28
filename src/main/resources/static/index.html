@@ -429,21 +429,26 @@
     }
 
     async function joinSession() {
-      if (!stompReady) { alert("Still connecting, please try again."); return; }
+  if (!stompReady) { alert("Still connecting, please try again."); return; }
 
-      shareCode = prompt("Enter share code");
-      if (!shareCode) return;
+  shareCode = prompt("Enter share code");
+  if (!shareCode) return;
 
-      isSender = false;
+  isSender = false;
 
-      await fetch("/api/session/join/" + shareCode);
-      document.getElementById("session").textContent = "Joined session: " + shareCode;
+  // ✅ response check karo
+  const response = await fetch("/api/session/join/" + shareCode);
 
-      signalingSubscribe();
+  if (!response.ok) {
+    alert("Invalid share code. Please check and try again.");
+    shareCode = null;
+    return;
+  }
 
-      // Tell the sender we're ready so they fire sendOffer()
-      signal("ready", "joined");
-    }
+  document.getElementById("session").textContent = "Joined session: " + shareCode;
+  signalingSubscribe();
+  signal("ready", "joined");
+}
 
     /* ─────────────────────────────────────────────────────
        UI helpers
