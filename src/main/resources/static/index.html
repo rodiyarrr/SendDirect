@@ -218,7 +218,7 @@
        - Sender creates the data channel inside sendOffer()
        - Receiver gets it via ondatachannel
     ───────────────────────────────────────────────────── */
-    var myPeerConnection = new RTCPeerConnection({
+    var peerConnection = new RTCPeerConnection({
   iceServers: [
       {
         urls: "stun:stun.relay.metered.ca:80",
