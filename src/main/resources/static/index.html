@@ -218,16 +218,33 @@
        - Sender creates the data channel inside sendOffer()
        - Receiver gets it via ondatachannel
     ───────────────────────────────────────────────────── */
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-        {
-          urls:       "turn:openrelay.metered.ca:80",
-          username:   "openrelayproject",
-          credential: "openrelayproject"
-        }
-      ]
-    });
+    var myPeerConnection = new RTCPeerConnection({
+  iceServers: [
+      {
+        urls: "stun:stun.relay.metered.ca:80",
+      },
+      {
+        urls: "turn:in.relay.metered.ca:80",
+        username: "694c992a4b0d54b9f34458b1",
+        credential: "8Zt9DoqXrntplJAM",
+      },
+      {
+        urls: "turn:in.relay.metered.ca:80?transport=tcp",
+        username: "694c992a4b0d54b9f34458b1",
+        credential: "8Zt9DoqXrntplJAM",
+      },
+      {
+        urls: "turn:in.relay.metered.ca:443",
+        username: "694c992a4b0d54b9f34458b1",
+        credential: "8Zt9DoqXrntplJAM",
+      },
+      {
+        urls: "turns:in.relay.metered.ca:443?transport=tcp",
+        username: "694c992a4b0d54b9f34458b1",
+        credential: "8Zt9DoqXrntplJAM",
+      },
+  ],
+});
 
     // Receiver: incoming data channel from sender
     peerConnection.ondatachannel = (event) => {
